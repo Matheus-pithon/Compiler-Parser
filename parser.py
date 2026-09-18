@@ -172,10 +172,22 @@ class Parser:
         return TYPE_BY_TOKEN[token.kind] #converte
 
     def parse_parameter_list(self) -> list[Parameter]:
-        raise NotImplementedError("implemente parameter_list")
+        #raise NotImplementedError("implemente parameter_list")
+
+        parametros = [self.parse_parameter()] #pega o primeiro parametro
+        while self.match(TokenKind.COMMA): # se tiver virgula, consome e vai no loop
+            parametros.append(self.parse_parameter()) # pega o proximo parametro
+
+        return parametros # devolve a lista de parametros
 
     def parse_parameter(self) -> Parameter: #cuida de um parametro
-        raise NotImplementedError("implemente parameter")
+        #raise NotImplementedError("implemente parameter")
+
+        inicio = self.peek() # guarda onde comecou
+        tipo = self.parse_type() # reconhece o tipo
+        nome = self.expect(TokenKind.IDENTIFIER) # exige o nome da variavel
+
+        return Parameter(tipo, nome.lexeme, span=self._span(inicio, nome)) #retorna o parametro
 
     def parse_block(self) -> Block: #
         raise NotImplementedError("implemente block")
