@@ -189,11 +189,34 @@ class Parser:
 
         return Parameter(tipo, nome.lexeme, span=self._span(inicio, nome)) #retorna o parametro
 
-    def parse_block(self) -> Block: #
-        raise NotImplementedError("implemente block")
+    def parse_block(self) -> Block: # {}
+        #raise NotImplementedError("implemente block")
+        inicio = self.expect(TokenKind.LEFT_BRACE) # espera o {
+        comandos = [] # lista de comandos
+        while not self.check(TokenKind.RIGHT_BRACE): #enquanto n for }
+            comandos.append(self.parse_statement()) #pega o comando
+        fim = self.expect(TokenKind.RIGHT_BRACE) # espera o }
+        return Block(comandos, span=self._span(inicio, fim))
 
     def parse_statement(self) -> Stmt: #controla, olha o token atual e decide oq fazer
-        raise NotImplementedError("implemente statement")
+        #raise NotImplementedError("implemente statement")
+        tipo = self.peek().kind
+        if tipo in TYPE_START:  # se comeca com int, bool ou void
+            return self.parse_declaration()
+        elif tipo == TokenKind.IDENTIFIER: # se comeca com nome(atribuicao ou chamada) 
+            return self.parse_id_or_call_statement()  
+        elif tipo == TokenKind.KW_IF: # se for if
+            return self.parse_if_statement() 
+        elif tipo == TokenKind.KW_WHILE: # se for while
+            return self.parse_while_statement()
+        elif tipo == TokenKind.KW_RETURN: # se for return
+            return self.parse_return_statement()
+        elif tipo == TokenKind.KW_PRINT: # se for print
+            return self.parse_print_statement()
+        elif tipo == TokenKind.LEFT_BRACE: # se for { bloco
+            return self.parse_block()
+        else: # se n for nenhum dos acima, da erro
+            raise self.expect(STATEMENT_START) 
 
     def parse_id_or_call_statement(self) -> Stmt: #ve c é uma chamadna ou =
         raise NotImplementedError("implemente id_or_call_statement")
