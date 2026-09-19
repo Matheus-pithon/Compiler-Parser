@@ -13,6 +13,10 @@ from ast_nodes import (
     Stmt,
     StringLiteral,
     TypeName,
+    VarDecl,
+    WhileStmt,
+    BinaryExpr,
+    BinaryOperator,
 )
 
 
@@ -222,13 +226,27 @@ class Parser:
         raise NotImplementedError("implemente id_or_call_statement")
 
     def parse_declaration(self) -> Stmt: #
-        raise NotImplementedError("implemente declaration")
+        #raise NotImplementedError("implemente declaration")
+        inicio = self.peek() #guarda onde comecou
+        tipo = self.parse_type() #pega o tipo(int, bool)
+        nome = self.expect(TokenKind.IDENTIFIER) #pega o nome da variavel
+        valor = None #comeca sem valor
+        if self.match(TokenKind.ASSIGN): #se tiver um =, consome e pega a expressao
+            valor = self.parse_expression()
+        fim = self.expect(TokenKind.SEMICOLON) #espera o ; no final
+        return VarDecl(tipo, nome.lexeme, valor, span=self._span(inicio, fim))
 
     def parse_if_statement(self) -> Stmt: 
         raise NotImplementedError("implemente if_statement")
 
     def parse_while_statement(self) -> Stmt:
-        raise NotImplementedError("implemente while_statement")
+        #raise NotImplementedError("implemente while_statement")
+        inicio = self.expect(TokenKind.KW_WHILE) # espera e consome a palavra while
+        self.expect(TokenKind.LEFT_PAREN) # espera o (
+        condicao = self.parse_expression() #pega a expressao/condicao do while
+        self.expect(TokenKind.RIGHT_PAREN) # espera o )
+        corpo = self.parse_block() # le o bloco de codigo {...}
+        return WhileStmt(condicao, corpo, span=self._span(inicio, corpo)) #retorna o while
 
     def parse_return_statement(self) -> Stmt:
         raise NotImplementedError("implemente return_statement")
@@ -243,16 +261,38 @@ class Parser:
         raise NotImplementedError("implemente string_literals")
 
     def parse_expression(self) -> Expr:
-        raise NotImplementedError("implemente expression")
+        #raise NotImplementedError("implemente expression")
+        return self.parse_logical_or() # expressao ::= logical_or
 
     def parse_logical_or(self) -> Expr:
-        raise NotImplementedError("implemente logical_or")
+        #raise NotImplementedError("implemente logical_or")
+        expr = self.parse_logical_and() #le o lado esquerdo
+        while self.match(TokenKind.LOGICAL_OR): #enquanto tiver ||
+            direita = self.parse_logical_and() #le o lado direito
+            expr = BinaryExpr(BinaryOperator.LOGICAL_OR, expr, direita, span=self._span(expr, direita)) # junta os dois lados
+        return expr
 
     def parse_logical_and(self) -> Expr:
-        raise NotImplementedError("implemente logical_and")
+        #raise NotImplementedError("implemente logical_and")
+        expr = self.parse_equality() #le o lado esquerdo
+        while self.match(TokenKind.LOGICAL_AND): #enquanto tiver &&
+            direita = self.parse_equality() #le o lado direito
+            expr = BinaryExpr(BinaryOperator.LOGICAL_AND, expr, direita, span=self._span(expr, direita)) # junta os dois lados
+        return expr
 
     def parse_equality(self) -> Expr:
-        raise NotImplementedError("implemente equality")
+        #raise NotImplementedError("implemente equality")
+        expr = self.parse_relational() #le o lado esquerdo
+        operadores = {TokenKind.EQUAL_EQUAL, TokenKind.NOT_EQUAL} #operadores de igualdade
+        while self.peek().kind in operadores: #enquanto tiver == ou !=
+            token = self.advance() #consome o "==" ou "!="
+            if token.kind == TokenKind.EQUAL_EQUAL: #se for ==
+                operador = BinaryOperator.EQUAL
+            elif token.kind == TokenKind.NOT_EQUAL: #se for !=
+                operador = BinaryOperator.NOT_EQUAL
+            direita = self.parse_relational() #le o lado direito
+            expr = BinaryExpr(operador, expr, direita, span=self._span(expr, direita)) # junta os dois lados
+        return expr
 
     def parse_relational(self) -> Expr:
         raise NotImplementedError("implemente relational")
