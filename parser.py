@@ -24,6 +24,10 @@ from ast_nodes import (
     CallExpr,
     IdentifierExpr,
     IfStmt,
+    ReturnStmt,
+    PrintStmt,
+    IntLiteral,
+    BoolLiteral,
 )
 
 
@@ -308,12 +312,13 @@ class Parser:
         token_esperado = self.expect(TokenKind.KW_RETURN)
         expressao = None
 
-        if self.peek().kinf in EXPRESSION_START: #vai ver c tem alguma expressao dps do return
-            valor = self.parse_expression() #se tiver vai mandar pro expression interpretar ela
+
+        if self.peek().kind in EXPRESSION_START: #vai ver c tem alguma expressao dps do return
+            expressao = self.parse_expression() #se tiver vai mandar pro expression interpretar ela
 
         fim = self.expect(TokenKind.SEMICOLON) #dps do return ou da expresssao, deve vir obrigatoriamente um ;
         return ReturnStmt(  #oq vai pra AST
-            valor,
+            expressao,
             span  = self._span(token_esperado, fim)
         )
 
@@ -352,9 +357,9 @@ class Parser:
 
     def parse_string_literals(self) -> StringLiteral: #REconhece e transforma uma ou mais string em um unico stringLIteral
         #string_literals ::= STRING_LITERAL+
-        token_esperado = self.expect(TokenKind.StringLiteral) #tem que existir pelo menos uma string
+        token_esperado = self.expect(TokenKind.STRING_LITERAL) #tem que existir pelo menos uma string
         ultimo = token_esperado #como temos somente uma string, ela vai ser o inicio e o fim do span
-        valor = primeiro.value
+        valor = token_esperado.value
 
         while self.check(TokenKind.STRING_LITERAL): #V c tem outra string seguida dessa
             ultimo = self.advance()
@@ -462,15 +467,87 @@ class Parser:
         # se n for ! ou -, chama parse_primary
         return self.parse_primary()
 
+
+        
     def parse_primary(self) -> Expr: #reconehce as unidades baiscas das expressoes
-        #raise NotImplementedError("implemente primary")
+    # Tipo, x + 10, idade >= 18, quem parse_primary vai ver é o x,10,idade,18
+    #cada fucnao vai cuidar de um nivel de "prioridade",  multi, adic
         #primary ::= LEFT_PAREN expression RIGHT_PAREN
         #  | IDENTIFIER (LEFT_PAREN arguments RIGHT_PAREN)?
         #  | INT_LITERAL
         #  | KW_TRUE
         #  | KW_FALSE
+        if self.check(TokenKind.LEFT_PAREN): #V c comeca com (
+            inicio = self.advance() #consome ( e vai pro prox
+            expr = self.parse_expression() #token ta no conteudo entre os (), chama pra tratar a expressao
+            fim = self.expect(TokenKind.RIGHT_PAREN) #esperado )
+            expr.span = self._span(inicio, fim) #span da expressao começa ( e termina no )
+            return expr
 
-    def parse_arguments(self) -> list[Expr]:
-        raise NotImplementedError("implemente arguments")
+        if self.check(TokenKind.IDENTIFIER): #se for identeifcador
+            nome = self.advance() #consome o identifcador e vai pro prox
+
+            if self.match(TokenKind.LEFT_PAREN): #v c o identicador antrior é uma funcao ou n
+            #se dps do identifcador ter ( é uma chada de funcao
+                argumentos = self.parse_arguments() #chama pra tratar os argumetnos
+                fim = self.expect(TokenKind.RIGHT_PAREN) #esperado o )
+
+                return CallExpr( #no da chamad de funcao
+                    nome.lexeme, #nome fucao
+                    argumentos, #lsita de arg
+                    span=self._span(nome, fim)
+                )
+
+            return IdentifierExpr( # c n for chamada de funcao, retorna o identificador
+                nome.lexeme, #nome indetificador
+                span=self._token_span(nome)# comeco e fim dele
+            )
+
+        if self.check(TokenKind.INT_LITERAL): #v c é numero(int)
+            token = self.advance() #consome numero e vai pro prox
+
+            return IntLiteral( #nó do int
+                token.value, #valor
+                span=self._token_span(token) #posicao do numero
+            )
+
+        if self.check(TokenKind.KW_TRUE): #true:
+            token = self.advance() #consome e prox
+
+            return BoolLiteral( #No da ast de true
+                token.value,
+                span=self._token_span(token)
+            )
+
+        if self.check(TokenKind.KW_FALSE):
+            token = self.advance()
+
+            return BoolLiteral(
+                token.value,
+                span=self._token_span(token)
+            )
+
+        esperado = { #cehgou até aqui, n entrou nenhum if anterior, ent é erro
+            TokenKind.LEFT_PAREN,
+            TokenKind.IDENTIFIER,
+            TokenKind.INT_LITERAL,
+            TokenKind.KW_TRUE,
+            TokenKind.KW_FALSE,
+        }
+
+        raise ParserError(self.peek(), esperado) #mensagem de erro sintatico
+
+    def parse_arguments(self) -> list[Expr]: #argumentos de uma chamada, pode n ter um arguemnto, (*)
+        
         #arguments ::= (expression (COMMA expression)*)?
+        argumentos = []
+        if self.peek().kind not in EXPRESSION_START : #v c pode comecar expressao, c n pode, nenhum agumento
+        #token pode ser um expression_start OU um ) (se o peek for ")", nenhum argumetno)
+            return argumentos
+
+        argumentos.append(self.parse_expression())
+
+        while self.match(TokenKind.COMMA) :    #c tiver virugla, outro arugmento
+            argumentos.append(self.parse_expression())
+        return argumentos
 
