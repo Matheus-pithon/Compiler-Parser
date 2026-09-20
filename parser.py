@@ -302,13 +302,28 @@ class Parser:
         corpo = self.parse_block() # le o bloco de codigo {}
         return WhileStmt(condicao, corpo, span=self._span(inicio, corpo)) #retorna o while
 
-    def parse_return_statement(self) -> Stmt:
-        raise NotImplementedError("implemente return_statement")
-        #return_statement ::= KW_RETURN expression? SEMICOLON
+    def parse_return_statement(self) -> Stmt:   #reconhecer o comando return
+        #raise NotImplementedError("implemente return_statement")
+        #return_statement ::= KW_RETURN expression? SEMICOLON  (?- aceita, return; e return x;)
+        token_esperado = self.expect(TokenKind.KW_RETURN)
+        expressao = None
 
-    def parse_print_statement(self) -> Stmt:
-        raise NotImplementedError("implemente print_statement")
-        #print_statement ::= KW_PRINT LEFT_PAREN print_item (COMMA print_item)* RIGHT_PAREN SEMICOLON
+        if self.peek().kinf in EXPRESSION_START: #vai ver c tem alguma expressao dps do return
+            valor = self.parse_expression() #se tiver vai mandar pro expression interpretar ela
+
+        fim = self.expect(TokenKind.SEMICOLON) #dps do return ou da expresssao, deve vir obrigatoriamente um ;
+        return ReturnStmt(  #oq vai pra AST
+            valor,
+            span  = self._span(token_esperado, fim)
+        )
+
+
+    def parse_print_statement(self) -> Stmt: #reconhece um comando compelto
+        #raise NotImplementedError("implemente print_statement")
+        #print_statement ::= KW_PRINT LEFT_PAREN print_item (COMMA print_item)* RIGHT_PAREN SEMICOLON #tem que ter no minino uma coisa para printar
+
+
+
 
 
     def parse_print_item(self) -> PrintItem:
