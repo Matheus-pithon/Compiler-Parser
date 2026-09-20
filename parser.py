@@ -17,6 +17,13 @@ from ast_nodes import (
     WhileStmt,
     BinaryExpr,
     BinaryOperator,
+    UnaryExpr,
+    UnaryOperator,
+    Assignment,
+    CallStmt,
+    CallExpr,
+    IdentifierExpr,
+    IfStmt,
 )
 
 
@@ -177,6 +184,7 @@ class Parser:
 
     def parse_parameter_list(self) -> list[Parameter]:
         #raise NotImplementedError("implemente parameter_list")
+        #parameter_list ::= parameter (COMMA parameter)*
 
         parametros = [self.parse_parameter()] #pega o primeiro parametro
         while self.match(TokenKind.COMMA): # se tiver virgula, consome e vai no loop
@@ -186,6 +194,7 @@ class Parser:
 
     def parse_parameter(self) -> Parameter: #cuida de um parametro
         #raise NotImplementedError("implemente parameter")
+        #parameter ::= type IDENTIFIER
 
         inicio = self.peek() # guarda onde comecou
         tipo = self.parse_type() # reconhece o tipo
@@ -195,6 +204,7 @@ class Parser:
 
     def parse_block(self) -> Block: # {}
         #raise NotImplementedError("implemente block")
+        #block ::= LEFT_BRACE statement* RIGHT_BRACE
         inicio = self.expect(TokenKind.LEFT_BRACE) # espera o {
         comandos = [] # lista de comandos
         while not self.check(TokenKind.RIGHT_BRACE): #enquanto n for }
@@ -204,6 +214,13 @@ class Parser:
 
     def parse_statement(self) -> Stmt: #controla, olha o token atual e decide oq fazer
         #raise NotImplementedError("implemente statement")
+        #statement ::= declaration
+        #    | id_or_call_statement
+        #    | if_statement
+        #    | while_statement
+        #    | return_statement
+        #    | print_statement
+        #    | block
         tipo = self.peek().kind
         if tipo in TYPE_START:  # se comeca com int, bool ou void
             return self.parse_declaration()
@@ -223,10 +240,31 @@ class Parser:
             raise self.expect(STATEMENT_START) 
 
     def parse_id_or_call_statement(self) -> Stmt: #ve c é uma chamadna ou =
-        raise NotImplementedError("implemente id_or_call_statement")
+        #raise NotImplementedError("implemente id_or_call_statement")
+        #id_or_call_statement ::= IDENTIFIER (ASSIGN expression | LEFT_PAREN arguments RIGHT_PAREN) SEMICOLON
+        nome = self.expect(TokenKind.IDENTIFIER) #pega o nome da variavel
+
+        #caso 1 atribuicao: x = 10;
+        if self.match(TokenKind.ASSIGN): #se tiver um =, consome e pega a expressao
+            valor = self.parse_expression() #pega a expressao
+            fim = self.expect(TokenKind.SEMICOLON) #espera o ; no final
+            alvo = IdentifierExpr(nome.lexeme, span=self._token_span(nome)) #cria a variavel que vai receber o valor (lado esquerdo do =)
+            return Assignment(alvo, valor, span=self._span(nome, fim)) #retorna a atribuicao
+
+        #caso 2 funcao: registrar(1, 2);
+        elif self.match(TokenKind.LEFT_PAREN): #se tiver um (, consome e pega os argumentos
+            argumentos = self.parse_arguments() #pega os argumentos
+            fecha_parenteses = self.expect(TokenKind.RIGHT_PAREN) #espera o ) no final
+            fim = self.expect(TokenKind.SEMICOLON) #espera o ; no final
+            chamada = CallExpr(nome.lexeme, argumentos, span=self._span(nome, fecha_parenteses)) #monta a chamada da funcao com os argumentos que tao dentro do ()
+            return CallStmt(chamada, span=self._span(nome, fim)) #retorna a chamada
+        
+        else: #se n for nenhum dos dois, da erro
+            raise self.expect({TokenKind.ASSIGN, TokenKind.LEFT_PAREN})
 
     def parse_declaration(self) -> Stmt: #
         #raise NotImplementedError("implemente declaration")
+        #declaration ::= type IDENTIFIER (ASSIGN expression)? SEMICOLON
         inicio = self.peek() #guarda onde comecou
         tipo = self.parse_type() #pega o tipo(int, bool)
         nome = self.expect(TokenKind.IDENTIFIER) #pega o nome da variavel
@@ -237,35 +275,58 @@ class Parser:
         return VarDecl(tipo, nome.lexeme, valor, span=self._span(inicio, fim))
 
     def parse_if_statement(self) -> Stmt: 
-        raise NotImplementedError("implemente if_statement")
+        #raise NotImplementedError("implemente if_statement")
+        #if_statement ::= KW_IF LEFT_PAREN expression RIGHT_PAREN block (KW_ELSE block)?
+        inicio = self.expect(TokenKind.KW_IF) # espera e consome a palavra if
+        self.expect(TokenKind.LEFT_PAREN) # espera o (
+        condicao = self.parse_expression() #pega a expressao/condicao do if
+        self.expect(TokenKind.RIGHT_PAREN) # espera o )
+        bloco_if = self.parse_block() # le o bloco de codigo {}
+        bloco_else = None #inicia o bloco else como None pois pode ter caso q nao tem
+        if self.match(TokenKind.KW_ELSE): #se tiver um else, consome e pega o bloco
+            bloco_else = self.parse_block() # le o bloco de codigo {}
+
+        if bloco_else is not None: #se tiver um bloco else, retorna o if com else
+            return IfStmt(condicao, bloco_if, bloco_else, span=self._span(inicio, bloco_else))
+        else: #se n tiver um bloco else, retorna o if sem else
+            return IfStmt(condicao, bloco_if, None, span=self._span(inicio, bloco_if))
+
 
     def parse_while_statement(self) -> Stmt:
         #raise NotImplementedError("implemente while_statement")
+        #while_statement ::= KW_WHILE LEFT_PAREN expression RIGHT_PAREN block
         inicio = self.expect(TokenKind.KW_WHILE) # espera e consome a palavra while
         self.expect(TokenKind.LEFT_PAREN) # espera o (
         condicao = self.parse_expression() #pega a expressao/condicao do while
         self.expect(TokenKind.RIGHT_PAREN) # espera o )
-        corpo = self.parse_block() # le o bloco de codigo {...}
+        corpo = self.parse_block() # le o bloco de codigo {}
         return WhileStmt(condicao, corpo, span=self._span(inicio, corpo)) #retorna o while
 
     def parse_return_statement(self) -> Stmt:
         raise NotImplementedError("implemente return_statement")
+        #return_statement ::= KW_RETURN expression? SEMICOLON
 
     def parse_print_statement(self) -> Stmt:
         raise NotImplementedError("implemente print_statement")
+        #print_statement ::= KW_PRINT LEFT_PAREN print_item (COMMA print_item)* RIGHT_PAREN SEMICOLON
+
 
     def parse_print_item(self) -> PrintItem:
         raise NotImplementedError("implemente print_item")
+        #print_item ::= expression | string_literals
 
     def parse_string_literals(self) -> StringLiteral:
         raise NotImplementedError("implemente string_literals")
+        #string_literals ::= STRING_LITERAL+
 
     def parse_expression(self) -> Expr:
         #raise NotImplementedError("implemente expression")
+        #expression ::= logical_or
         return self.parse_logical_or() # expressao ::= logical_or
 
     def parse_logical_or(self) -> Expr:
         #raise NotImplementedError("implemente logical_or")
+        #logical_or ::= logical_and (LOGICAL_OR logical_and)*
         expr = self.parse_logical_and() #le o lado esquerdo
         while self.match(TokenKind.LOGICAL_OR): #enquanto tiver ||
             direita = self.parse_logical_and() #le o lado direito
@@ -274,6 +335,7 @@ class Parser:
 
     def parse_logical_and(self) -> Expr:
         #raise NotImplementedError("implemente logical_and")
+        #logical_and ::= equality (LOGICAL_AND equality)*
         expr = self.parse_equality() #le o lado esquerdo
         while self.match(TokenKind.LOGICAL_AND): #enquanto tiver &&
             direita = self.parse_equality() #le o lado direito
@@ -282,6 +344,7 @@ class Parser:
 
     def parse_equality(self) -> Expr:
         #raise NotImplementedError("implemente equality")
+        #equality ::= relational ((EQUAL_EQUAL | NOT_EQUAL) relational)*
         expr = self.parse_relational() #le o lado esquerdo
         operadores = {TokenKind.EQUAL_EQUAL, TokenKind.NOT_EQUAL} #operadores de igualdade
         while self.peek().kind in operadores: #enquanto tiver == ou !=
@@ -295,20 +358,73 @@ class Parser:
         return expr
 
     def parse_relational(self) -> Expr:
-        raise NotImplementedError("implemente relational")
+        #raise NotImplementedError("implemente relational")
+        #relational ::= additive ((LESS | LESS_EQUAL | GREATER | GREATER_EQUAL) additive)*
+        expr = self.parse_additive() #le o lado esquerdo
+        operadores = {TokenKind.LESS: BinaryOperator.LESS, TokenKind.LESS_EQUAL: BinaryOperator.LESS_EQUAL, TokenKind.GREATER: BinaryOperator.GREATER, TokenKind.GREATER_EQUAL: BinaryOperator.GREATER_EQUAL}
+        while self.peek().kind in operadores: #enquanto tiver <, <=, >, >=
+            token = self.advance() #consome o operador
+            operador = operadores[token.kind] #pega o operador
+            direita = self.parse_additive() #le o lado direito
+            expr = BinaryExpr(operador, expr, direita, span=self._span(expr, direita)) # junta os dois lados
+        return expr
 
     def parse_additive(self) -> Expr:
-        raise NotImplementedError("implemente additive")
+        #raise NotImplementedError("implemente additive")
+        #additive ::= multiplicative ((PLUS | MINUS) multiplicative)*
+        expr = self.parse_multiplicative() # le o lado esquerdo
+        operadores = {TokenKind.PLUS, TokenKind.MINUS}
+        while self.peek().kind in operadores: # enquanto tiver + ou -
+            token = self.advance() # consome o "+" ou "-"
+            if token.kind == TokenKind.PLUS:
+                operador = BinaryOperator.ADD
+            else:
+                operador = BinaryOperator.SUBTRACT
+            direita = self.parse_multiplicative() # le o lado direito
+            expr = BinaryExpr(operador, expr, direita, span=self._span(expr, direita))
+        return expr
 
     def parse_multiplicative(self) -> Expr:
-        raise NotImplementedError("implemente multiplicative")
+        #raise NotImplementedError("implemente multiplicative")
+        #multiplicative ::= unary ((STAR | SLASH | PERCENT) unary)*
+        expr = self.parse_unary() # le o lado esquerdo
+        operadores = {TokenKind.STAR, TokenKind.SLASH, TokenKind.PERCENT}
+        while self.peek().kind in operadores: # enquanto tiver *, / ou %
+            token = self.advance() # consome o operador
+            if token.kind == TokenKind.STAR: # se for *
+                operador = BinaryOperator.MULTIPLY
+            elif token.kind == TokenKind.SLASH: # se for /
+                operador = BinaryOperator.DIVIDE
+            else: # se for %
+                operador = BinaryOperator.REMAINDER
+            direita = self.parse_unary() # le o lado direito
+            expr = BinaryExpr(operador, expr, direita, span=self._span(expr, direita)) # junta os dois lados
+        return expr
 
     def parse_unary(self) -> Expr:
-        raise NotImplementedError("implemente unary")
+        #raise NotImplementedError("implemente unary")
+        #unary ::= (LOGICAL_NOT | MINUS) unary | primary
+        if self.peek().kind in {TokenKind.LOGICAL_NOT, TokenKind.MINUS}: # comeca com ! ou -
+            token = self.advance() # consome o '!' ou '-'
+            if token.kind == TokenKind.LOGICAL_NOT: # se for !
+                operador = UnaryOperator.NOT
+            else: # se for -
+                operador = UnaryOperator.NEGATE
+            operando = self.parse_unary() #suportar--x ou !!ativo /// MINUS (MINUS  unary) ////// LOGICAL_NOT (LOGICAL_NOT primary) →! ! ativo
+            return UnaryExpr(operador, operando, span=self._span(token, operando))
+
+        # se n for ! ou -, chama parse_primary
+        return self.parse_primary()
 
     def parse_primary(self) -> Expr:
         raise NotImplementedError("implemente primary")
+        #primary ::= LEFT_PAREN expression RIGHT_PAREN
+        #  | IDENTIFIER (LEFT_PAREN arguments RIGHT_PAREN)?
+        #  | INT_LITERAL
+        #  | KW_TRUE
+        #  | KW_FALSE
 
     def parse_arguments(self) -> list[Expr]:
         raise NotImplementedError("implemente arguments")
+        #arguments ::= (expression (COMMA expression)*)?
 
