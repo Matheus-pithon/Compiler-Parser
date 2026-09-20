@@ -321,18 +321,49 @@ class Parser:
     def parse_print_statement(self) -> Stmt: #reconhece um comando compelto
         #raise NotImplementedError("implemente print_statement")
         #print_statement ::= KW_PRINT LEFT_PAREN print_item (COMMA print_item)* RIGHT_PAREN SEMICOLON #tem que ter no minino uma coisa para printar
+        token_inicial_esperado = self.expect(TokenKind.KW_PRINT)
+
+        self.expect(TokenKind.LEFT_PAREN) #dos do print, é esperado um (
+        prints = [self.parse_print_item()] #lista dos prints, prints vai ter o primeiro termo do print
+        while self.match(TokenKind.COMMA): #vai ver c o token atual é uma virgula
+            prints.append(self.parse_print_item()) #se for virgula, tem mais termo, vai la pegar
+        self.expect(TokenKind.RIGHT_PAREN) #dps dos termos do print é esperadoum )
+
+        fim = self.expect(TokenKind.SEMICOLON) #é esperado um ; dps do do fechamento do )
+        return PrintStmt( 
+            prints,
+            span = self._span(token_inicial_esperado,fim)
+        )
 
 
-
-
-
-    def parse_print_item(self) -> PrintItem:
-        raise NotImplementedError("implemente print_item")
+    def parse_print_item(self) -> PrintItem: #vai ver c esta imprindo uma string ou uma expressao
         #print_item ::= expression | string_literals
+        if self.check(TokenKind.STRING_LITERAL): #Verifica se o token atual é uma string
+            return self.parse_string_literals()
+        if self.peek().kind in EXPRESSION_START: #C n é string verifica se é alguma coisa que pode comecar expressao
+            return self.parse_expression()#funcao responsalve por expressoes
+        tokens_esperados = EXPRESSION_START | {TokenKind.STRING_LITERAL} #se n for nenhuma das duas, erro
+        
+        raise ParserError( #########
+            self.peek(),
+            tokens_esperados
+        )
 
-    def parse_string_literals(self) -> StringLiteral:
-        raise NotImplementedError("implemente string_literals")
+
+    def parse_string_literals(self) -> StringLiteral: #REconhece e transforma uma ou mais string em um unico stringLIteral
         #string_literals ::= STRING_LITERAL+
+        token_esperado = self.expect(TokenKind.StringLiteral) #tem que existir pelo menos uma string
+        ultimo = token_esperado #como temos somente uma string, ela vai ser o inicio e o fim do span
+        valor = primeiro.value
+
+        while self.check(TokenKind.STRING_LITERAL): #V c tem outra string seguida dessa
+            ultimo = self.advance()
+            valor += ultimo.value
+
+        return StringLiteral(
+            valor,
+            span = self._span(token_esperado, ultimo)
+        )
 
     def parse_expression(self) -> Expr:
         #raise NotImplementedError("implemente expression")
@@ -431,8 +462,8 @@ class Parser:
         # se n for ! ou -, chama parse_primary
         return self.parse_primary()
 
-    def parse_primary(self) -> Expr:
-        raise NotImplementedError("implemente primary")
+    def parse_primary(self) -> Expr: #reconehce as unidades baiscas das expressoes
+        #raise NotImplementedError("implemente primary")
         #primary ::= LEFT_PAREN expression RIGHT_PAREN
         #  | IDENTIFIER (LEFT_PAREN arguments RIGHT_PAREN)?
         #  | INT_LITERAL
